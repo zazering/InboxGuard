@@ -1,0 +1,97 @@
+# ─────────────────────────────────────────────────────────────
+#   InboxGuard — config.yaml
+#   Copy to ~/.config/inboxguard/config.yaml and fill it in.
+# ─────────────────────────────────────────────────────────────
+
+# ── Email / IMAP ──────────────────────────────────────────────
+email:
+  # Gmail:   imap.gmail.com   port 993
+  # Outlook: outlook.office365.com  port 993
+  # ProtonMail (Bridge): 127.0.0.1  port 1143
+  imap_server: imap.gmail.com
+  imap_port:   993
+
+  username: your@gmail.com
+  # For Gmail use an App Password (Google Account → Security → App Passwords).
+  # You can also use an environment variable:  password: $INBOXGUARD_PASS
+  password: your-app-password-here
+
+  folder:           INBOX
+  check_interval:   300     # seconds between checks (300 = 5 min)
+  max_fetch_per_cycle: 25   # max unseen emails to process per run
+
+# ── Local LLM (Ollama) ────────────────────────────────────────
+llm:
+  # Best choices for RTX 3060 6 GB:
+  #   qwen2.5:3b      ~2 GB VRAM  ← recommended (best instruction following)
+  #   phi3.5:mini     ~2.5 GB VRAM  (very fast)
+  #   gemma2:2b       ~1.5 GB VRAM  (lightest)
+  model:      qwen2.5:3b
+  ollama_url: http://localhost:11434
+  timeout:    45   # seconds to wait for one LLM response
+
+# ── Triage rules ─────────────────────────────────────────────
+# Rules are checked first — they override the LLM.
+# If no rule matches, the LLM decides.
+rules:
+
+  # Emails that ALWAYS require personal reading
+  always_read:
+    - from_contains:
+        - boss@yourcompany.com
+        - cto@yourcompany.com
+        - hr@yourcompany.com
+    - subject_contains:
+        - "URGENT"
+        - "action required"
+        - "your account has been"
+
+  # Emails where a summary is enough — no need to open them
+  summary_only:
+    - from_contains:
+        - noreply@
+        - no-reply@
+        - notifications@
+        - github.com
+        - gitlab.com
+    - subject_contains:
+        - "weekly digest"
+        - "monthly newsletter"
+        - "your receipt"
+        - "order confirmed"
+        - "invoice"
+        - "pull request"
+        - "new comment"
+
+  # Emails to silently ignore (no notification)
+  ignore:
+    - from_contains:
+        - unsubscribe@
+        - marketing@
+        - promotions@
+        - mailer-daemon
+    - subject_contains:
+        - "unsubscribe"
+        - "50% off"
+        - "limited time offer"
+        - "you won"
+        - "click here to claim"
+
+# ── Notifications ─────────────────────────────────────────────
+notifications:
+  enabled:                   true
+  summary_in_notification:   true   # Show the AI summary in the desktop popup
+
+# ── Web Dashboard ─────────────────────────────────────────────
+web_ui:
+  enabled: true
+  host:    127.0.0.1   # Localhost only — safe
+  port:    5000
+
+# ── Storage ───────────────────────────────────────────────────
+database:
+  path: ~/.local/share/inboxguard/emails.db
+
+# ── Logging ───────────────────────────────────────────────────
+logging:
+  level: INFO   # DEBUG for troubleshooting

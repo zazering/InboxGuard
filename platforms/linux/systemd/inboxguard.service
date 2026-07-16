@@ -1,0 +1,24 @@
+[Unit]
+Description=InboxGuard — Local AI Email Triage Agent
+Documentation=https://github.com/zazering/inboxguard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=INSTALL_DIR
+ExecStart=INSTALL_DIR/.venv/bin/python INSTALL_DIR/main.py
+Restart=on-failure
+RestartSec=30s
+
+# Let the desktop notification system work
+Environment=DISPLAY=:0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+
+# Keep logs manageable
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=inboxguard
+
+[Install]
+WantedBy=default.target

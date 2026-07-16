@@ -1,0 +1,47 @@
+name: Publish Cross-Platform Releases
+
+on:
+  push:
+    tags:
+      - 'v*' # Срабатывает при пуше тегов вроде v1.0.0, v2.1.3
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── СБОРКА ДЛЯ LINUX ───────────────────────────────────────────────────
+      - name: Pack Linux Release
+        run: |
+          mkdir -p dist/linux
+          # Копируем общие файлы
+          cp -r main.py requirements.txt config.example.yaml src web dist/linux/
+          # Копируем только файлы для Linux в корень сборки
+          cp platforms/linux/setup.sh dist/linux/
+          cp -r platforms/linux/systemd dist/linux/
+          # Архивируем
+          cd dist/linux && tar -czf ../../inboxguard-linux.tar.gz . && cd ../..
+
+      # ── СБОРКА ДЛЯ WINDOWS ─────────────────────────────────────────────────
+      - name: Pack Windows Release
+        run: |
+          mkdir -p dist/windows
+          # Копируем общие файлы
+          cp -r main.py requirements.txt config.example.yaml src web dist/windows/
+          # Копируем только файлы для Windows в корень сборки
+          cp platforms/windows/setup.bat dist/windows/
+          cp platforms/windows/start_inboxguard.vbs dist/windows/
+          # Архивируем в zip (используем встроенный в ubuntu zip)
+          cd dist/windows && zip -r ../../inboxguard-windows.zip . && cd ../..
+
+      # ── ПУБЛИКАЦИЯ НА GITHUB ───────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            inboxguard-linux.tar.gz
+            inboxguard-windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

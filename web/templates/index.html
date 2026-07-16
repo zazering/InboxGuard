@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InboxGuard</title>
+  <style>
+    /* ── Base ── */
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #21262d;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --accent:   #58a6ff;
+      --read:     #f85149;
+      --summary:  #58a6ff;
+      --ignore:   #3fb950;
+      --high:     #d29922;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .logo { font-size: 1.6rem; }
+    header h1    { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+    header .sub  { color: var(--muted); font-size: 0.78rem; }
+    #health-dot  {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #555; margin-left: auto; flex-shrink: 0;
+      box-shadow: 0 0 6px currentColor;
+    }
+    #health-dot.ok  { background: var(--ignore); color: var(--ignore); }
+    #health-dot.err { background: var(--read);   color: var(--read); }
+    #last-refresh   { color: var(--muted); font-size: 0.75rem; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      padding: 18px 24px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      min-width: 110px;
+      flex: 1;
+    }
+    .stat-card .num  { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-card .lbl  { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+    .stat-card.total .num   { color: var(--text); }
+    .stat-card.s-read .num  { color: var(--read); }
+    .stat-card.s-summ .num  { color: var(--summary); }
+    .stat-card.s-ign  .num  { color: var(--ignore); }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      padding: 0 24px 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 5px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all .15s;
+    }
+    .filter-btn:hover  { border-color: var(--accent); color: var(--text); }
+    .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,.08); }
+    .refresh-btn {
+      margin-left: auto;
+      background: #238636;
+      border: 1px solid #2ea043;
+      color: #fff;
+      padding: 5px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: background .15s;
+    }
+    .refresh-btn:hover { background: #2ea043; }
+
+    /* ── Email list ── */
+    .email-list   { padding: 0 24px 40px; }
+    .list-header  { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+    .empty        { text-align: center; color: var(--muted); padding: 48px 0; font-size: 1.05rem; }
+
+    .email-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 7px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      transition: border-color .15s;
+    }
+    .email-item:hover          { border-color: rgba(88,166,255,.4); }
+    .email-item.prio-high      { border-left: 3px solid var(--high); }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .badge.read    { background: rgba(248,81,73,.15); color: var(--read);    border: 1px solid rgba(248,81,73,.35); }
+    .badge.summary { background: rgba(88,166,255,.15); color: var(--summary); border: 1px solid rgba(88,166,255,.35); }
+    .badge.ignore  { background: rgba(63,185,80,.12); color: var(--ignore);  border: 1px solid rgba(63,185,80,.3); }
+
+    .email-body    { flex: 1; min-width: 0; }
+    .email-subject { font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .email-sender  { color: var(--muted); font-size: .8rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .email-summary { color: var(--text); font-size: .82rem; margin-top: 6px; opacity: .85; line-height: 1.45; }
+    .email-reason  { color: var(--muted); font-size: .74rem; margin-top: 4px; font-style: italic; }
+    .email-meta    { color: var(--muted); font-size: .72rem; margin-top: 6px; }
+    .prio-badge    { font-size: .68rem; color: var(--high); font-weight: 700; margin-left: 6px; }
+
+    /* ── Info panel ── */
+    .info-panel {
+      margin: 0 24px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .info-item { display: flex; flex-direction: column; gap: 2px; }
+    .info-item .il { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
+    .info-item .iv { font-size: .85rem; font-weight: 600; }
+    .dot-ok  { color: var(--ignore); }
+    .dot-err { color: var(--read); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar        { width: 6px; }
+    ::-webkit-scrollbar-track  { background: transparent; }
+    ::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🛡️</span>
+  <div>
+    <h1>InboxGuard</h1>
+    <div class="sub">Local AI Email Triage</div>
+  </div>
+  <div id="health-dot" title="Ollama status"></div>
+  <span id="last-refresh"></span>
+</header>
+
+<div class="stats-bar" id="stats-bar">
+  <div class="stat-card total"><div class="num" id="s-total">—</div><div class="lbl">Total</div></div>
+  <div class="stat-card s-read"><div class="num" id="s-read">—</div><div class="lbl">To Read</div></div>
+  <div class="stat-card s-summ"><div class="num" id="s-summ">—</div><div class="lbl">Summary</div></div>
+  <div class="stat-card s-ign"><div class="num" id="s-ign">—</div><div class="lbl">Ignored</div></div>
+</div>
+
+<div class="info-panel" id="info-panel" style="display:none"></div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="setFilter('all',  this)">All</button>
+  <button class="filter-btn"        onclick="setFilter('read', this)">🔴 Read</button>
+  <button class="filter-btn"        onclick="setFilter('summary', this)">📋 Summary</button>
+  <button class="filter-btn"        onclick="setFilter('ignore',  this)">🗑️ Ignored</button>
+  <button class="refresh-btn"       onclick="loadAll()">↻ Refresh</button>
+</div>
+
+<div class="email-list">
+  <div class="list-header">Recent emails</div>
+  <div id="email-container"><div class="empty">Loading…</div></div>
+</div>
+
+<script>
+  let allEmails   = [];
+  let activeFilter = 'all';
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  const esc = s => String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  function timeAgo(iso) {
+    const sec = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (sec < 60)    return 'just now';
+    if (sec < 3600)  return `${Math.floor(sec/60)}m ago`;
+    if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+    return `${Math.floor(sec/86400)}d ago`;
+  }
+
+  // ── Render emails ─────────────────────────────────────────────────────────
+
+  function render() {
+    const emails = activeFilter === 'all'
+      ? allEmails
+      : allEmails.filter(e => e.action === activeFilter);
+
+    const el = document.getElementById('email-container');
+    if (!emails.length) {
+      el.innerHTML = '<div class="empty">No emails in this category yet.</div>';
+      return;
+    }
+
+    el.innerHTML = emails.map(e => `
+      <div class="email-item ${e.priority === 'high' ? 'prio-high' : ''}">
+        <span class="badge ${e.action}">${e.action}</span>
+        <div class="email-body">
+          <div class="email-subject">
+            ${esc(e.subject)}
+            ${e.priority === 'high' ? '<span class="prio-badge">▲ HIGH</span>' : ''}
+          </div>
+          <div class="email-sender">From: ${esc(e.sender)}</div>
+          ${e.summary ? `<div class="email-summary">${esc(e.summary)}</div>` : ''}
+          ${e.reason  ? `<div class="email-reason">💡 ${esc(e.reason)}</div>` : ''}
+          <div class="email-meta">${timeAgo(e.processed_at)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function setFilter(type, btn) {
+    activeFilter = type;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+
+  async function loadStats() {
+    const r = await fetch('/api/stats');
+    const s = await r.json();
+    document.getElementById('s-total').textContent = s.total   || 0;
+    document.getElementById('s-read').textContent  = s.read    || 0;
+    document.getElementById('s-summ').textContent  = s.summary || 0;
+    document.getElementById('s-ign').textContent   = s.ignore  || 0;
+  }
+
+  // ── Health ────────────────────────────────────────────────────────────────
+
+  async function loadHealth() {
+    try {
+      const r = await fetch('/api/health');
+      const h = await r.json();
+      const dot = document.getElementById('health-dot');
+      dot.className = (h.ollama && h.model) ? 'ok' : 'err';
+      dot.title = h.ollama
+        ? (h.model ? `Ollama OK — model loaded` : 'Ollama running but model not found')
+        : 'Ollama not reachable';
+
+      const cfg = await (await fetch('/api/config')).json();
+      const panel = document.getElementById('info-panel');
+      panel.style.display = 'flex';
+      panel.innerHTML = `
+        <div class="info-item">
+          <span class="il">Ollama</span>
+          <span class="iv ${h.ollama ? 'dot-ok' : 'dot-err'}">${h.ollama ? '● Running' : '● Offline'}</span>
+        </div>
+        <div class="info-item">
+          <span class="il">Model</span>
+          <span class="iv">${cfg.llm?.model || '—'}</span>
+        </div>
+        <div class="info-item">
+          <span class="il">Mailbox</span>
+          <span class="iv">${cfg.email?.imap_server || '—'} / ${cfg.email?.folder || 'INBOX'}</span>
+        </div>
+        <div class="info-item">
+          <span class="il">Check every</span>
+          <span class="iv">${Math.round((cfg.email?.check_interval||300)/60)} min</span>
+        </div>
+      `;
+    } catch (e) {
+      console.warn('Health check failed', e);
+    }
+  }
+
+  // ── Main load ─────────────────────────────────────────────────────────────
+
+  async function loadAll() {
+    try {
+      const [emailsRes] = await Promise.all([
+        fetch('/api/emails?limit=80'),
+        loadStats(),
+        loadHealth(),
+      ]);
+      allEmails = await emailsRes.json();
+      render();
+      document.getElementById('last-refresh').textContent =
+        'Updated ' + new Date().toLocaleTimeString();
+    } catch (e) {
+      document.getElementById('email-container').innerHTML =
+        '<div class="empty">⚠️ Could not reach InboxGuard backend.</div>';
+    }
+  }
+
+  loadAll();
+  setInterval(loadAll, 30_000); // Auto-refresh every 30 s
+</script>
+</body>
+</html>
